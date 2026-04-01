@@ -16,4 +16,4 @@ __pycache__/
 reconstruct/
 *.so
 data/
-pretrained_gaussians/
+pretrained_gaussians/StereoMIS_0_0_1/
