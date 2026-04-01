@@ -1,1 +1,1 @@
-python scripts/pre_dam_dep.py --dataset_root data/endonerf/pulling_soft_tissues --rgb_paths images
+python scripts/pre_dam_dep.py --dataset_root StereoMIS_0_0_1/P1 --rgb_paths images_1

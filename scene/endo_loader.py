@@ -225,12 +225,16 @@ class EndoNeRF_Dataset(object):
         # get paths of images, depths, masks, etc.
         agg_fn = lambda filetype: sorted(glob.glob(os.path.join(self.root_dir, filetype, "*.png")) \
             +glob.glob(os.path.join(self.root_dir, filetype, "*.npy")))
-        self.image_paths = agg_fn("images")
         if self.stereomis:
-            self.depth_paths = agg_fn('dep_png')
-        else:
+            image_dir = "images" if os.path.isdir(os.path.join(self.root_dir, "images")) else "images_1"
+            self.image_paths = agg_fn(image_dir)
             self.depth_paths = agg_fn("depth_dam")
-        self.mask_paths = agg_fn("masks")
+            # StereoMIS masks are not guaranteed to align with selected frame subset.
+            self.mask_paths = []
+        else:
+            self.image_paths = agg_fn("images")
+            self.depth_paths = agg_fn("depth_dam")
+            self.mask_paths = agg_fn("masks")
 
 
         assert len(self.image_paths) == poses.shape[0], "the number of images should equal to the number of poses"
@@ -251,7 +255,8 @@ class EndoNeRF_Dataset(object):
             color = (np.array(Image.open(self.image_paths[idx]))/255.0).astype(np.float32)
             # depth
             # depth_es = 1 / depth_es * 1000
-            depth_es = np.load(self.image_paths[idx].replace('images', 'depth_dam').replace('png', 'npy'))
+            depth_name = os.path.basename(self.image_paths[idx]).replace('.png', '.npy')
+            depth_es = np.load(os.path.join(self.root_dir, 'depth_dam', depth_name))
             # mask
             if len(self.mask_paths) == 0:
                 if self.stereomis:
@@ -262,8 +267,11 @@ class EndoNeRF_Dataset(object):
                 mask_path = self.mask_paths[idx]
                 mask = Image.open(mask_path)
             if self.stereomis:
-                mask = np.array(mask)/255
-                mask = mask[..., 0]
+                mask = np.array(mask)
+                if mask.ndim == 3:
+                    mask = mask[..., 0]
+                if mask.dtype != np.bool_ and mask.max() > 1:
+                    mask = mask / 255.0
             else:
                 mask = 1 - np.array(mask) / 255.0
             # Init Point Cloud
@@ -294,7 +302,12 @@ class EndoNeRF_Dataset(object):
         color = self.init_img.transpose((2,0,1))
         _, h, w = color.shape
         depth = self.init_depth
-        mask = self.init_mask[None].astype(np.uint8)
+        if depth.ndim == 2:
+            depth = depth[None]
+        mask = self.init_mask
+        if mask.ndim == 2:
+            mask = mask[None]
+        mask = mask.astype(np.bool_)
         
         intrinsics = [self.focal[0], self.focal[1], w/2, h/2]
         R, T = self.image_poses[0]

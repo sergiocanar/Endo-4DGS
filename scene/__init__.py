@@ -38,18 +38,19 @@ class Scene:
             else:
                 self.loaded_iter = load_iteration
             print("Loading trained model at iteration {}".format(self.loaded_iter))
+        source_path_lower = args.source_path.lower()
         if os.path.exists(os.path.join(args.source_path, "sparse")):
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, args.use_pretrain)
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval, args.use_pretrain)
-        elif os.path.exists(os.path.join(args.source_path, "poses_bounds.npy")) and (not 'endo' in args.source_path):
-            scene_info = sceneLoadTypeCallbacks["dynerf"](args.source_path, args.white_background, args.eval, args.use_pretrain)
+        elif os.path.exists(os.path.join(args.source_path, "poses_bounds.npy")) and ('endo' in source_path_lower or 'stereomis' in source_path_lower):
+            scene_info = sceneLoadTypeCallbacks["endonerf"](args.source_path, args.white_background, args.eval, args.use_pretrain)
+            print("Found poses_bounds.npy and loading as EndoNeRF/StereoMIS")
+        elif os.path.exists(os.path.join(args.source_path, "poses_bounds.npy")):
+            scene_info = sceneLoadTypeCallbacks["dynerf"](args.source_path, args.white_background, args.eval)
         elif os.path.exists(os.path.join(args.source_path,"dataset.json")):
             scene_info = sceneLoadTypeCallbacks["nerfies"](args.source_path, False, args.eval, args.use_pretrain)
-        elif os.path.exists(os.path.join(args.source_path, "poses_bounds.npy")) and 'endo' in args.source_path:
-            scene_info = sceneLoadTypeCallbacks["endonerf"](args.source_path, args.white_background, args.eval, args.use_pretrain)
-            print("Found poses_bounds.py and extra marks with EndoNeRf")
         elif os.path.exists(os.path.join(args.source_path, "point_cloud.obj")) or os.path.exists(os.path.join(args.source_path, "left_point_cloud.obj")):
             scene_info = sceneLoadTypeCallbacks["scared"](args.source_path, args.white_background, args.eval, args.use_pretrain)
             print("Found point_cloud.obj, assuming SCARED data!")

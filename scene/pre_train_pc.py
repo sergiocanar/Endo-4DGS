@@ -25,8 +25,26 @@ def get_pointcloud(color, depth, intrinsics, w2c, transform_pts=True,
     yy = (y_grid - CY)/FY
     xx = xx.reshape(-1)
     yy = yy.reshape(-1)
-    depth_z = depth[0].reshape(-1)
-    mask = mask[0].reshape(-1).astype(np.bool8)
+    depth_arr = np.asarray(depth)
+    if depth_arr.ndim == 3:
+        depth_z = depth_arr[0].reshape(-1)
+    elif depth_arr.ndim == 2:
+        depth_z = depth_arr.reshape(-1)
+    else:
+        raise ValueError(f"Unexpected depth shape: {depth_arr.shape}")
+
+    if mask is None:
+        mask = np.ones_like(depth_z, dtype=np.bool8)
+    else:
+        mask_arr = np.asarray(mask)
+        if mask_arr.ndim == 3:
+            mask_arr = mask_arr[0]
+        if mask_arr.ndim == 2:
+            mask = mask_arr.reshape(-1).astype(np.bool8)
+        elif mask_arr.ndim == 1 and mask_arr.size == depth_z.size:
+            mask = mask_arr.astype(np.bool8)
+        else:
+            mask = np.ones_like(depth_z, dtype=np.bool8)
 
     # Initialize point cloud
     pts_cam = np.stack((xx * depth_z, yy * depth_z, depth_z), axis=-1)

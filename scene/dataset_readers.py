@@ -446,7 +446,7 @@ def readdynerfInfo(datadir,use_bg_points,eval):
 def readEndoNeRFInfo(datadir, use_bg_points, eval, use_pretrain=True):
     # load camera infos
     from scene.endo_loader import EndoNeRF_Dataset
-    if 'stereomis' in datadir:
+    if 'stereomis' in datadir.lower():
         sm=True
         print("Use stereomis")
     else:

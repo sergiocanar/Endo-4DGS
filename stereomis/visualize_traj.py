@@ -1,96 +1,106 @@
 import torch
-import open3d as o3d
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless
+import matplotlib.pyplot as plt
 
-
-vizualizer = o3d.visualization.Visualizer()
-vizualizer.create_window(width=800, height=800)
-
-camera_traj = []
 
 def load_extrinsics(pose_path):
-    ''' return: 
-    '''
     extrinsics = []
     with open(pose_path, "r") as f:
-        lines = f.readlines() # Skip the header
-    for i in range(len(lines)):
-        line = lines[i]
-        pose = list(map(float, line.split(sep=',')))
-        pose = torch.Tensor(pose).reshape(4, 4).float().transpose(0, 1)
+        lines = f.readlines()
+    for line in lines:
+        pose = list(map(float, line.split(",")))
+        pose = torch.tensor(pose).reshape(4, 4).float().transpose(0, 1)
         extrinsic = np.linalg.inv(pose.detach().cpu().numpy())
         extrinsics.append(extrinsic)
     return extrinsics
+
 
 def load_pose(file_path):
     poses = np.load(file_path)[:, :15]
     poses = poses.reshape(-1, 3, 5)[:, :3, :4]
     last_line = np.tile(np.array([[0, 0, 0, 1]])[None], (poses.shape[0], 1, 1))
     poses = np.concatenate((poses, last_line), axis=1)
-
     return poses
 
-width=1280
-height=1024
-fx = 693.2049560546875
-fy = 502.83544921875
-cx = 1040.2305908203125
-cy = 1040.0146484375
 
-intrin = np.array([[fx, 0, cx],
-                    [0, fy, cy],
-                    [0, 0, 1]])
+def draw_camera(ax, c2w, scale=0.03):
+    """
+    c2w: camera-to-world 4x4
+    """
+    origin = c2w[:3, 3]
+    R = c2w[:3, :3]
 
-poses = load_pose('../StereoMIS_0_0_1/P1/poses_bounds.npy')
-extrinsics = []
+    # simple frustum in camera coords
+    pts_cam = np.array([
+        [0, 0, 0],
+        [-1, -1, 2],
+        [ 1, -1, 2],
+        [ 1,  1, 2],
+        [-1,  1, 2],
+    ], dtype=float) * scale
+
+    pts_world = (R @ pts_cam.T).T + origin
+
+    edges = [
+        (0, 1), (0, 2), (0, 3), (0, 4),
+        (1, 2), (2, 3), (3, 4), (4, 1)
+    ]
+
+    for i, j in edges:
+        ax.plot(
+            [pts_world[i, 0], pts_world[j, 0]],
+            [pts_world[i, 1], pts_world[j, 1]],
+            [pts_world[i, 2], pts_world[j, 2]],
+            linewidth=0.8
+        )
+
+
+poses = load_pose("../StereoMIS_0_0_1/P1/poses_bounds.npy")
+
+camera_centers = []
+camera_c2w = []
 
 for i, pose in enumerate(poses):
-    intrinsic=o3d.camera.PinholeCameraIntrinsic(
-        width=width,
-        height=height,
-        fx = fx, 
-        fy = fy,
-        cx = cx,
-        cy = cy
-    )
+    extrin = np.linalg.inv(pose)   # world->camera if pose was c2w, or vice versa depending on source
+    c2w = np.linalg.inv(extrin)    # camera->world
+    camera_c2w.append(c2w)
+    camera_centers.append(c2w[:3, 3])
 
-    camera = o3d.camera.PinholeCameraParameters()
-    extrin = np.linalg.inv(pose)
-    
-    camera.extrinsic = extrin 
-    extrinsics.append(extrin)
-    camera.intrinsic = intrinsic
-    camera_traj.append(camera)
+camera_centers = np.stack(camera_centers, axis=0)
 
-extrinsics = np.stack(extrinsics, axis=0)
+fig = plt.figure(figsize=(8, 8))
+ax = fig.add_subplot(111, projection="3d")
 
-o3d_intrinsics = []
-o3d_extrinsics = []
-count = 0
+# trajectory
+ax.plot(
+    camera_centers[:, 0],
+    camera_centers[:, 1],
+    camera_centers[:, 2],
+)
 
-for i, cam_o3d in enumerate(camera_traj):
-    if (i+1)%3 != 0:
-        count += 1/len(camera_traj)
+# every 3rd camera
+for i, c2w in enumerate(camera_c2w):
+    if (i + 1) % 3 != 0:
         continue
-    o3d_intrinsics.append(cam_o3d.intrinsic.intrinsic_matrix)
-    o3d_extrinsics.append(cam_o3d.extrinsic)
-    xyz = np.asarray(np.linalg.inv(cam_o3d.extrinsic)[:3, 3])
-    cameraLines = o3d.geometry.LineSet.create_camera_visualization(view_width_px=675, 
-                                                            view_height_px=540, 
-                                                            intrinsic=intrin, 
-                                                            extrinsic=extrinsics[i])
-    
-    cameraLines.paint_uniform_color(np.array([0.5, count, count]))
-    mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(\
-        size=2, origin=[0, 0, 0])
-    mesh_frame.transform(np.linalg.inv(cam_o3d.extrinsic))
-    vizualizer.add_geometry(mesh_frame)
-    
-    count += 1/len(camera_traj)
-    vizualizer.add_geometry(cameraLines)
-    
-# The x, y, z axis will be rendered as red, green, and blue arrows respectively.
-# FOR1 = o3d.geometry.TriangleMesh.create_coordinate_frame(size=30, origin=[0, 0, 0])
-# vizualizer.add_geometry(FOR1)
-vizualizer.run()
-vizualizer.destroy_window()
+    draw_camera(ax, c2w, scale=0.03)
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z")
+ax.set_title("Camera trajectory")
+
+# make axes roughly equal
+mins = camera_centers.min(axis=0)
+maxs = camera_centers.max(axis=0)
+center = (mins + maxs) / 2
+radius = np.max(maxs - mins) / 2
+
+ax.set_xlim(center[0] - radius, center[0] + radius)
+ax.set_ylim(center[1] - radius, center[1] + radius)
+ax.set_zlim(center[2] - radius, center[2] + radius)
+
+plt.tight_layout()
+plt.savefig("trajectory.png", dpi=200)
+print("Saved trajectory.png")

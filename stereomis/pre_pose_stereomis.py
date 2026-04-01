@@ -11,8 +11,8 @@ raw_data_root = '..'
 
 data_dir = f'{raw_data_root}/StereoMIS_0_0_1/P1'
 pose_file = 'groundtruth.txt'
-start_index = 7801
-img_range = 100
+start_index = 801
+img_range = 200
 f = open(os.path.join(data_dir, pose_file), 'r')
 data = f.read()
 lines = data.replace(",", " ").replace("\t", " ").split("\n")

@@ -66,7 +66,14 @@ def process_one(dir_name):
         cv2.imwrite(right_path, right_calib)
         count += 1
     
-folder_list = sorted(glob(os.path.join('..', "P1")))
+raw_data_root = os.path.join('..', 'StereoMIS_0_0_1')
+folder_list = sorted(glob(os.path.join(raw_data_root, "P1")))
+
+if len(folder_list) == 0:
+    raise FileNotFoundError(
+        f"Could not find sequence folder at {os.path.join(raw_data_root, 'P1')}. "
+        "Please ensure StereoMIS_0_0_1 is placed at the repository root."
+    )
 
 for f in tqdm.tqdm(folder_list):
     process_one(f)
