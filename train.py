@@ -448,6 +448,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         torch.cuda.empty_cache()
         # 
         validation_configs = ({'name': 'test', 'cameras' : [scene.getTestCameras()[idx % len(scene.getTestCameras())] for idx in range(10, 5000, 299)]},)#,
+        use_imed_overlap_eval = "imed" in args.source_path.lower()
 
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
@@ -455,6 +456,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                 psnr_test = 0.0
                 lpips_score_test = 0.0
                 ssim_test = 0.0
+                overlap_mask = None
 
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians,stage=stage, cam_type=dataset_type, *renderArgs)["render"], 0.0, 1.0)
@@ -466,6 +468,12 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                     mask = viewpoint.mask
                     if mask is not None:
                         mask = mask.cuda()
+                    if use_imed_overlap_eval:
+                        if overlap_mask is None:
+                            overlap_mask = (image.sum(dim=0) > 0).float()
+                        mask = overlap_mask if mask is None else (mask.float() * overlap_mask).clamp(0.0, 1.0)
+
+                    if mask is not None:
                         image = image * mask
                         gt_image = gt_image * mask
                     

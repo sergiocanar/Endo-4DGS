@@ -496,6 +496,41 @@ def readEndoNeRFInfo(datadir, use_bg_points, eval, use_pretrain=True):
                            maxtime=maxtime)
 
     return scene_info
+
+
+def readIMEDInfo(datadir, use_bg_points, eval, use_pretrain=True):
+    from scene.imed_loader import IMED_Dataset
+
+    imed_dataset = IMED_Dataset(datadir=datadir, downsample=1.0)
+    train_cam_infos = imed_dataset.format_infos(split="train")
+    test_cam_infos = imed_dataset.format_infos(split="test")
+    video_cam_infos = None
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+
+    ply_path = os.path.join(datadir, "points3d.ply")
+    if use_pretrain:
+        xyz, rgb, normals = imed_dataset.get_pretrain_pcd()
+    else:
+        num_pcd = int(imed_dataset.H * imed_dataset.W)
+        xyz = np.stack([np.arange(-50, 50, step=100 / num_pcd),
+                        np.arange(-50, 50, step=100 / num_pcd),
+                        np.arange(-50, 50, step=100 / num_pcd)], axis=1)
+        rgb = np.random.rand(num_pcd, 3)
+        normals = np.zeros((xyz.shape[0], 3))
+
+    pcd = BasicPointCloud(points=xyz, colors=rgb, normals=normals)
+    storePly(ply_path, xyz, rgb * 255)
+    pcd = fetchPly(ply_path)
+    maxtime = imed_dataset.get_maxtime()
+
+    scene_info = SceneInfo(point_cloud=pcd,
+                           train_cameras=train_cam_infos,
+                           test_cameras=test_cam_infos,
+                           video_cameras=video_cam_infos,
+                           nerf_normalization=nerf_normalization,
+                           ply_path=ply_path,
+                           maxtime=maxtime)
+    return scene_info
     
 def readScaredInfo(datadir, use_bg_points, eval):
     # load camera infos
@@ -542,5 +577,6 @@ sceneLoadTypeCallbacks = {
     "Blender" : readNerfSyntheticInfo,
     "dynerf" : readdynerfInfo,
     "endonerf": readEndoNeRFInfo,
-    "scared": readScaredInfo
+    "scared": readScaredInfo,
+    "imed": readIMEDInfo
 }

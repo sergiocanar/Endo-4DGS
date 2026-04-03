@@ -27,11 +27,19 @@ faulthandler.enable()
 def array2tensor(array, device="cuda", dtype=torch.float32):
     return torch.tensor(array, dtype=dtype, device=device)
 
-def readImages(renders_dir, gt_dir, masks_dir):
+def readImages(renders_dir, gt_dir, masks_dir, overlap_mask_path=None):
     renders = []
     gts = []
     image_names = []
     masks = []
+    overlap_mask = None
+
+    if overlap_mask_path is not None and overlap_mask_path.exists():
+        overlap_raw = np.array(Image.open(overlap_mask_path))
+        overlap_mask = tf.to_tensor(overlap_raw).unsqueeze(0).cuda()
+        if overlap_mask.shape[1] > 1:
+            overlap_mask = overlap_mask[:, :1, :, :]
+        overlap_mask = (overlap_mask > 0.5).float()
     
     for fname in os.listdir(renders_dir):
         render = np.array(Image.open(renders_dir / fname))
@@ -40,7 +48,13 @@ def readImages(renders_dir, gt_dir, masks_dir):
         
         renders.append(tf.to_tensor(render).unsqueeze(0)[:, :3, :, :].cuda())
         gts.append(tf.to_tensor(gt).unsqueeze(0)[:, :3, :, :].cuda())
-        masks.append(tf.to_tensor(mask).unsqueeze(0).cuda())
+        frame_mask = tf.to_tensor(mask).unsqueeze(0).cuda()
+        if frame_mask.shape[1] > 1:
+            frame_mask = frame_mask[:, :1, :, :]
+        frame_mask = (frame_mask > 0.5).float()
+        if overlap_mask is not None:
+            frame_mask = overlap_mask
+        masks.append(frame_mask)
         image_names.append(fname)
     return renders, gts, masks, image_names
 
@@ -76,8 +90,9 @@ def evaluate(model_paths):
                 gt_dir = method_dir/ "gt"
                 renders_dir = method_dir / "renders"
                 masks_dir = method_dir / "masks"
+                overlap_mask_path = method_dir / "overlap_mask.png"
                 
-                renders, gts, masks, image_names = readImages(renders_dir, gt_dir, masks_dir)
+                renders, gts, masks, image_names = readImages(renders_dir, gt_dir, masks_dir, overlap_mask_path)
 
                 ssims = []
                 psnrs = []

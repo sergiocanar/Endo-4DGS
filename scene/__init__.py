@@ -39,11 +39,20 @@ class Scene:
                 self.loaded_iter = load_iteration
             print("Loading trained model at iteration {}".format(self.loaded_iter))
         source_path_lower = args.source_path.lower()
+        is_imed = (
+            os.path.exists(os.path.join(args.source_path, "pose.txt"))
+            and os.path.exists(os.path.join(args.source_path, "K.txt"))
+            and os.path.isdir(os.path.join(args.source_path, "endoscope1"))
+            and os.path.isdir(os.path.join(args.source_path, "endoscope2"))
+        )
         if os.path.exists(os.path.join(args.source_path, "sparse")):
             scene_info = sceneLoadTypeCallbacks["Colmap"](args.source_path, args.images, args.eval, args.use_pretrain)
         elif os.path.exists(os.path.join(args.source_path, "transforms_train.json")):
             print("Found transforms_train.json file, assuming Blender data set!")
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval, args.use_pretrain)
+        elif is_imed:
+            scene_info = sceneLoadTypeCallbacks["imed"](args.source_path, args.white_background, args.eval, args.use_pretrain)
+            print("Found IMED session structure, loading IMED dataset")
         elif os.path.exists(os.path.join(args.source_path, "poses_bounds.npy")) and ('endo' in source_path_lower or 'stereomis' in source_path_lower):
             scene_info = sceneLoadTypeCallbacks["endonerf"](args.source_path, args.white_background, args.eval, args.use_pretrain)
             print("Found poses_bounds.npy and loading as EndoNeRF/StereoMIS")

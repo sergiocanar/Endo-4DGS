@@ -37,6 +37,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     normal_path = os.path.join(model_path, name, "ours_{}".format(iteration), "normal")
     confidence_path = os.path.join(model_path, name, "ours_{}".format(iteration), "confidence")
     pcd_path = os.path.join(model_path, name, "ours_{}".format(iteration), "pcd")
+    overlap_mask_path = os.path.join(model_path, name, "ours_{}".format(iteration), "overlap_mask.png")
 
     makedirs(render_path, exist_ok=True)
     makedirs(normal_path, exist_ok=True)
@@ -105,6 +106,12 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         for image in tqdm(render_images):
             torchvision.utils.save_image(image, os.path.join(render_path, '{0:05d}'.format(count) + ".png"))
             count +=1
+
+    if name == "test" and len(render_images) > 0:
+        # Global overlap support for evaluation: non-zero reprojection support from first test render.
+        first_render = render_images[0]
+        overlap_mask = (first_render.sum(dim=0, keepdim=True) > 0).float()
+        torchvision.utils.save_image(overlap_mask, overlap_mask_path)
     
     count = 0
     print("writing mask images.")

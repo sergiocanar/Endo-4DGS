@@ -91,6 +91,33 @@ bash prepare_stereomis.sh
 cd stereomis
 python visualize_traj.py
 ```
+### IMED (Static Two-Camera)
+For IMED sessions, use this structure directly:
+```
+./data/imed/session_004_scene_2_tool_1
+├── K.txt
+├── pose.txt
+├── endoscope1
+│   ├── L
+│   ├── depthL
+│   └── toolL
+└── endoscope2
+    ├── L
+    ├── depthL
+    └── toolL
+```
+
+Conventions used by the loader:
+- `pose.txt` has exactly two rows: `k tx ty tz qx qy qz qw`
+- translations are in mm and are used directly
+- depths in `depthL` are metric mm and are used directly
+- train stream is `endoscope2/L`; test stream is `endoscope1/L`
+- masks are loaded from `toolL` and applied as `mask = 1 - raw_mask/255`
+
+Run training:
+```bash
+sh train_imed.sh
+```
 ### Preparing the Pretrained Depths from Depth-Anything
 Download [depth_anything_vits14.onnx](https://github.com/fabio-sim/Depth-Anything-ONNX/releases) and place in:
 ./submodules/depth_anything/weights/depth_anything_vits14.onnx
