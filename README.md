@@ -1,99 +1,39 @@
-<!-- PROJECT LOGO -->
+# Endo-4DGS for iMED Static Two-Camera Evaluation
 
-<p align="center">
+## Huge Thanks to the Original Repository
 
-  <h1 align="center">Endo-4DGS: Endoscopic Monocular Scene Reconstruction with 4D Gaussian Splatting</h1>
-  <div align="center">
-    <h4><a href="https://lastbasket.github.io/"><strong>Yiming Huang</strong></a> *, <a href="https://beileicui.github.io/"><strong>Beilei Cui</strong></a> *, <a href="https://longbai-cuhk.github.io/"><strong>Long Bai</strong></a> *, Ziqi Guo, <a href="https://xumengyaamy.github.io/"><strong>Mengya Xu</strong></a>, <a href="https://www.ee.cuhk.edu.hk/en-gb/people/academic-staff/professors/prof-ren-hongliang"><strong>Hongliang Ren</strong></a> </h3>
-    <h3> Medical Image Computing and Computer Assisted Intervention (MICCAI) 2024 </h2>
-    <h3 align="center"> || <a href="https://arxiv.org/pdf/2401.16416">Paper</a> || <a href="https://arxiv.org/abs/2401.16416">Arxiv</a> || </h3>
-    <div align="center"></div>
-  </div>
-  <div align="center"></div>
-</p>
-<p align="center">
-    <img src="./assets/archi_1.jpg" alt="Logo" width="85%">
-  </a>
-</p>
+This project is a fork of the original Endo-4DGS repository by Huang et al.
 
-## TODO
-- [x] EndoNeRF
-- [x] StereoMIS
-- [x] Pretrained checkpoints
+- Original codebase: [lastbasket/Endo-4DGS](https://github.com/lastbasket/Endo-4DGS)
+- This fork: [smbonilla/Endo-4DGS](https://github.com/smbonilla/Endo-4DGS)
 
+Please cite the original Endo-4DGS work:
 
-## Environments
-
-We build the Python environment using [Anaconda](https://www.anaconda.com/download/):
-1. Install the CUDA toolkit on ubuntu following [this](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html), and then:
-```shell
-export PATH=/usr/local/cuda-11.8/bin:${PATH}
-export LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
-export CUDA_HOME=/usr/local/cuda-11.8
+```bibtex
+@inproceedings{huang2024endo,
+  title={Endo-4dgs: Endoscopic monocular scene reconstruction with 4d gaussian splatting},
+  author={Huang, Yiming and Cui, Beilei and Bai, Long and Guo, Ziqi and Xu, Mengya and Islam, Mobarakol and Ren, Hongliang},
+  booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
+  pages={197--207},
+  year={2024},
+  organization={Springer}
+}
 ```
 
-2. Install the Python environment
-```shell
-git clone https://github.com/lastbasket/Endo-4DGS.git
-cd Endo-4DGS
-git submodule update --init --recursive
-conda create -n ED4DGS python=3.8
-conda activate ED4DGS
+## What This Fork Adds
 
-pip install -r requirements.txt
-pip install -e submodules/diff-gaussian-rasterization-depth
-pip install -e submodules/simple-knn
-pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118
-pip install torchmetrics
-```
+This fork adds iMED dataset support for a static two-camera protocol:
 
-## Datasets
-We used two datasets for training and evaluation.
+- Training view: `endoscope2/L`
+- Test view: `endoscope1/L`
+- Depths: `depthL` (mm, used directly)
+- Masks: `toolL`, loaded and converted as `mask = 1 - raw_mask/255`
+- Poses: `pose.txt` with exactly 2 rows (`k tx ty tz qx qy qz qw`)
+- Intrinsics: `K.txt`
 
-### EndoNeRF
+Expected dataset layout:
 
-We used EndoNeRF dataset provided by [Yuehao Wang](https://docs.google.com/forms/d/e/1FAIpQLSfM0ukpixJkZzlK1G3QSA7CMCoOJMFFdHm5ltCV1K6GNVb3nQ/viewform).
-
-### StereoMIS
-We used StereoMIS dataset from [Michel Hayoz](https://zenodo.org/records/7727692)
-
-The data structure is as follows:
-
-```
-./data
-├── endonerf
-│    ├── cutting_tissues_twice
-│    │    └── ...
-│    ├── pulling_soft_tissues
-│    │    └── ...
-│    └── ...
-└── stereomis
-    └── ...
-```
-
-How to prepare stereomis:
-```
-# 1. unzip StereoMIS_0_0_1.zip to StereoMIS_0_0_1
-# 2. run the script
-bash prepare_stereomis.sh
-```
-```
-# 3. arrange the files as
-./data
-└── stereomis
-    └── split_1
-    │    │    └── images
-    │    │    └── poses_bounds.npy
-    │    │    └── ...
-```
-```
-# 4. you may also visualize the trajectory using
-cd stereomis
-python visualize_traj.py
-```
-### IMED (Static Two-Camera)
-For IMED sessions, use this structure directly:
-```
+```text
 ./data/imed/session_004_scene_2_tool_1
 ├── K.txt
 ├── pose.txt
@@ -107,65 +47,49 @@ For IMED sessions, use this structure directly:
     └── toolL
 ```
 
-Conventions used by the loader:
-- `pose.txt` has exactly two rows: `k tx ty tz qx qy qz qw`
-- translations are in mm and are used directly
-- depths in `depthL` are metric mm and are used directly
-- train stream is `endoscope2/L`; test stream is `endoscope1/L`
-- masks are loaded from `toolL` and applied as `mask = 1 - raw_mask/255`
+## Method: Train on One Camera, Test on the Other
 
-Run training:
+For each static iMED session:
+
+1. Train Gaussian splats only on `endoscope2` images.
+2. Keep both cameras static and use the provided two-camera pose relation.
+3. Render novel views from the held-out `endoscope1` camera.
+4. Evaluate rendered test images against `endoscope1` ground truth.
+
+This setup measures cross-camera generalization rather than interpolation within one camera stream.
+
+## Metrics and Timing
+
+- **PSNR / SSIM:** computed in `metrics.py`.
+- **LPIPS:** also computed in `metrics.py`.
+- **Inference speed:** printed as `FPS` in `render.py` during rendering.
+
+For iMED two-camera evaluation, PSNR/SSIM are computed on the valid reprojection region from `endoscope2` into `endoscope1` (single global mask per sequence).
+
+## Setup
+
+```bash
+git clone https://github.com/smbonilla/Endo-4DGS.git
+cd Endo-4DGS
+git submodule update --init --recursive
+conda create -n ED4DGS python=3.8
+conda activate ED4DGS
+pip install -r requirements.txt
+pip install -e submodules/diff-gaussian-rasterization-depth
+pip install -e submodules/simple-knn
+pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118
+pip install torchmetrics
+```
+
+## Run iMED Training
+
 ```bash
 sh train_imed.sh
 ```
-### Preparing the Pretrained Depths from Depth-Anything
-Download [depth_anything_vits14.onnx](https://github.com/fabio-sim/Depth-Anything-ONNX/releases) and place in:
-./submodules/depth_anything/weights/depth_anything_vits14.onnx
-```bash
-sh prepare_depth.sh
-```
-## Training
 
+## Run Rendering + Evaluation
 
 ```bash
-sh train.sh
+python render.py --model_path <OUTPUT_PATH> --pc --skip_video --skip_train --configs arguments/imed.py
+python metrics.py --model_path <OUTPUT_PATH>
 ```
-More configurations can be found in arguments/$DATASET.py
-
-## Evaluation
-
-```bash
-# Render the testing result
-sh render.sh
-# Evaluation
-sh eval.sh
-```
-
-## Inferring the pretrained Gaussians
-Download [pretrained_gaussians](https://mycuhk-my.sharepoint.com/:u:/g/personal/1155209042_link_cuhk_edu_hk/ERUYhd6E4INEj2IwxREjZxIBNMU9iMozbnPEIcWse-pBbA?e=z05Cfw) and unzip in the project directory:
-```bash
-# Render the testing result e.g. endonerf/pulling
-python render.py --model_path pretrained_gaussians/endonerf/pulling --pc --skip_video --skip_train --configs arguments/endonerf.py
-```
-
-## Related Works
-Welcome to follow our related works:
-- [SurgTPGS](https://lastbasket.github.io/MICCAI-2025-SurgTPGS/): Vison-Language Surgical 3D Scene Understanding
-- [Endo-4DGX](https://lastbasket.github.io/MICCAI-2025-Endo-4DGX/): Robust Endoscopic Gaussian Splatting with Illumination Correction
-- [Endo2DTAM](https://github.com/lastbasket/Endo-2DTAM): Gaussian Splatting SLAM for Endoscopic Scene
-
-## Cite
-```
-@inproceedings{huang2024endo,
-  title={Endo-4dgs: Endoscopic monocular scene reconstruction with 4d gaussian splatting},
-  author={Huang, Yiming and Cui, Beilei and Bai, Long and Guo, Ziqi and Xu, Mengya and Islam, Mobarakol and Ren, Hongliang},
-  booktitle={International Conference on Medical Image Computing and Computer-Assisted Intervention},
-  pages={197--207},
-  year={2024},
-  organization={Springer}
-}
-
-```
-## Acknowledgement
-
-Thanks the authors for their works: [StereoMIS](https://arxiv.org/abs/2304.08023v1), [diff-gaussian-rasterization-depth](https://github.com/leo-frank/diff-gaussian-rasterization-depth), [EndoNeRF](https://github.com/med-air/EndoNeRF), [4DGaussians](https://github.com/hustvl/4DGaussians), [Depth-Anything-ONNX](https://github.com/fabio-sim/Depth-Anything-ONNX).
