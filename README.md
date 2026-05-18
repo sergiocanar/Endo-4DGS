@@ -4,6 +4,10 @@ This repository supports the iMED 2026 challenge subtask on deformable novel vie
 
 [[Challenge Website](https://imed-challenge.github.io/)] [[Participate](https://www.synapse.org/Synapse:syn74277461/wiki/639538)] [[Parent Challenge Hub](https://opencas.dkfz.de/endovis/challenges/2026/)]
 
+<p align="center">
+  <img src="assets/comparison.gif" width="900" alt="Ground truth (left), trained endoscope render (middle), and evaluated endoscope render (right) on session_004_scene_2_tool_1"/>
+</p>
+
 ## Huge Thanks to the Original Repository
 
 This project is a fork of the original Endo-4DGS repository by Huang et al.
